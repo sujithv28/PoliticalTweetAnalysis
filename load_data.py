@@ -6,6 +6,7 @@ import pandas as pd
 import numpy.lib
 import numpy as np
 import cPickle as pickle
+import vincent
 from collections import Counter, defaultdict
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
@@ -31,8 +32,17 @@ regex_str = [
     r'(?:\S)' # anything else
 ]
 
+positive_vocab = [
+    'good', 'nice', 'great', 'awesome', 'outstanding',
+    'fantastic', 'terrific', ':)', ':-)', 'like', 'love',
+]
+negative_vocab = [
+    'bad', 'terrible', 'evil', 'useless', 'hate', ':(', ':-(',
+    'scandal', 'racist'
+]
+
 punctuation = list(string.punctuation)
-stop = stopwords.words('english') + punctuation + ['rt', 'via'] + ['...']
+stop = stopwords.words('english') + punctuation + ['rt', 'via', '...', 'I']
 tokens_re = re.compile(r'('+'|'.join(regex_str)+')', re.VERBOSE | re.IGNORECASE)
 emoticon_re = re.compile(r'^'+emoticons_str+'$', re.VERBOSE | re.IGNORECASE)
 
@@ -60,7 +70,6 @@ terms_filtered = Counter()
 terms_all = Counter()
 terms_trump = Counter()
 terms_hillary = Counter()
-com = defaultdict(lambda : defaultdict(int))
 
 i = 0
 for row in csv_f:
@@ -90,39 +99,14 @@ data = pd.DataFrame(tweets, columns=headers)
 # Count terms only once, equivalent to Document Frequency
 terms_single = set(terms_filtered)
 
-print("\nFiltered Frequency:")
 # Print out 10 most frequent words filtered
-for word, count in terms_filtered.most_common(5):
+print("\nFiltered Frequency:")
+for word, count in terms_filtered.most_common(15):
     print("{0}: {1}".format(word, count))
 
 # Print out 10 most unfiltered frequent words
 print("\nUnfiltered Frequency:")
-for word, count in terms_all.most_common(5):
-    print("{0}: {1}".format(word, count))
-
-# Print out 10 most co-current words for Hillary
-print("\nHillary Co-current Frequency:")
-for word, count in terms_hillary.most_common(5):
-    print("{0}: {1}".format(word, count))
-
-# Print out 10 most co-current words for Trump
-print("\nTrump Co-current Frequency:")
-for word, count in terms_trump.most_common(5):
+for word, count in terms_all.most_common(15):
     print("{0}: {1}".format(word, count))
 
 print('\n')
-
-# Test saving Pandas Data Frame
-fname = 'tweets_dataframe'
-np.save(open(fname, 'w'), data)
-if len(data.shape) == 2:
-    meta = data.index,data.columns
-elif len(data.shape) == 1:
-    meta = (data.index,)
-else:
-    raise ValueError('save_pandas: Cannot save this type')
-s = pickle.dumps(meta)
-s = s.encode('string_escape')
-with open(fname, 'a') as f:
-    f.seek(0, 2)
-    f.write(s)
