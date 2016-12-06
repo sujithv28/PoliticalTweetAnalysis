@@ -11,6 +11,12 @@ from collections import Counter, defaultdict
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 
+# Open CSV File to read
+temp_subset_file = open('/Users/sujith/Dropbox/US_UK_ElectionTweets/US_all_tweets/temp_subset.csv')
+all_tweets_file = open('/Users/sujith/Dropbox/US_UK_ElectionTweets/US_all_tweets/all_tweets.csv')
+csv_f = csv.reader(temp_subset_file)
+fname = 'tweets_dataframe'
+
 # Helper methods which tokenize, and convert the content string
 # to a list of words (can also handle #'s, @'s, etc)
 emoticons_str = r"""
@@ -55,12 +61,6 @@ def preprocess(s, lowercase=False):
         tokens = [token if emoticon_re.search(token) else token.lower() for token in tokens]
     return tokens
 
-
-# Open CSV File to read
-temp_subset_file = open('/Users/sujith/Dropbox/US_UK_ElectionTweets/US_all_tweets/temp_subset.csv')
-all_tweets_file = open('/Users/sujith/Dropbox/US_UK_ElectionTweets/US_all_tweets/all_tweets.csv')
-csv_f = csv.reader(temp_subset_file)
-
 # Keep track of list of tweets, empty Pandas DF,
 # column headers, and frequency counter
 tweets = []
@@ -75,6 +75,8 @@ i = 0
 for row in csv_f:
     # Append every row after header to list
     if i>0:
+        if (i%1000 == 0):
+            print('Analyzed %d/10000' % (i))
         # Filter out "RT" text if it's a retweet
         if len(row[5])>2 and row[5][:2] == 'RT':
             row[5] = row[5][3:]
@@ -100,13 +102,39 @@ data = pd.DataFrame(tweets, columns=headers)
 terms_single = set(terms_filtered)
 
 # Print out 10 most frequent words filtered
-print("\nFiltered Frequency:")
+print('\nFiltered Frequency:')
 for word, count in terms_filtered.most_common(15):
-    print("{0}: {1}".format(word, count))
+    print('{0}: {1}'.format(word, count))
 
 # Print out 10 most unfiltered frequent words
-print("\nUnfiltered Frequency:")
+print('\nUnfiltered Frequency:')
 for word, count in terms_all.most_common(15):
-    print("{0}: {1}".format(word, count))
+    print('{0}: {1}'.format(word, count))
 
 print('\n')
+
+# SAVE
+np.save(open(fname, 'w'), data)
+if len(data.shape) == 2:
+    meta = data.index,data.columns
+elif len(data.shape) == 1:
+    meta = (data.index,)
+else:
+    raise ValueError('save_pandas: Cannot save this type')
+s = pickle.dumps(meta)
+s = s.encode('string_escape')
+with open(fname, 'a') as f:
+    f.seek(0, 2)
+    f.write(s)
+
+# LOAD
+# values = np.load(fname, mmap_mode=mmap_mode)
+# with open(fname) as f:
+#     numpy.lib.format.read_magic(f)
+#     numpy.lib.format.read_array_header_1_0(f)
+#     f.seek(values.dtype.alignment*values.size, 1)
+#     meta = pickle.loads(f.readline().decode('string_escape'))
+# if len(meta) == 2:
+#     return pd.DataFrame(values, index=meta[0], columns=meta[1])
+# elif len(meta) == 1:
+#     return pd.Series(values, index=meta[0])
