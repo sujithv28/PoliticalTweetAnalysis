@@ -143,14 +143,14 @@ class App:
         for phrase, score in [(feature_names[word_id], score) for (word_id, score) in sorted_phrase_scores][:len(sorted_phrase_scores)]:
            print('{0: <40} {1}'.format(phrase, score))
 
-    def find_consine_similar(self, tfidf_matrix, index, top_n = 5):
+    def find_cosine_similar(self, tfidf_matrix, index, top_n = 5):
         cosine_similarities = linear_kernel(self.tfidf_matrix[index:index+1], self.tfidf_matrix).flatten()
         related_docs_indices = [i for i in cosine_similarities.argsort()[::-1] if i != index]
         return [(index, cosine_similarities[index]) for index in related_docs_indices][0:top_n]
 
     def print_cosine_similar(self):
         print('\nTweets Similar To: %s \n' % (self.corpus[15]))
-        for index, score in self.find_consine_similar(self.tfidf_matrix, 15):
+        for index, score in self.find_cosine_similar(self.tfidf_matrix, 15):
             print('%.2f  ->  %s' % (score, self.corpus[index]))
 
     def save_dataframe(self):
