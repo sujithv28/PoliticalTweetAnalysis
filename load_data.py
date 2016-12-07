@@ -18,6 +18,7 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem.porter import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
+import os, pwd
 
 # Helper methods which tokenize, and convert the content string
 # to a list of words (can also handle #'s, @'s, etc)
@@ -168,8 +169,11 @@ class App:
 
 def main():
     import sys
-    temp_subset_file = open('/Users/sujith/Dropbox/US_UK_ElectionTweets/US_all_tweets/temp_subset.csv')
-    all_tweets_file = open('/Users/sujith/Dropbox/US_UK_ElectionTweets/US_all_tweets/all_tweets.csv')
+
+    username = pwd.getpwuid( os.getuid() )[ 0 ]
+    
+    temp_subset_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/US_all_tweets/temp_subset.csv'.format(username))
+    all_tweets_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/US_all_tweets/all_tweets.csv'.format(username))
     app = App(temp_subset_file)
     # app.load_dataframe()
     app.load_data()
