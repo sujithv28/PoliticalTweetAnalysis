@@ -10,6 +10,7 @@ import string
 import pandas as pd
 import numpy.lib
 import numpy as np
+import pdb
 import cPickle as pickle
 import vincent
 from collections import Counter, defaultdict
@@ -84,7 +85,7 @@ class App:
             # Append every row after header to list
             if i>0:
                 if (i%1000 == 0):
-                    print('Analyzed %d/10000' % (i))
+                    print('Analyzed %10d' % (i))
                 # Filter out "RT" text if it's a retweet
                 if len(row[5])>2 and row[5][:2] == 'RT':
                     row[5] = row[5][3:]
@@ -97,9 +98,9 @@ class App:
                 self.terms_all.extend(row[5])
 
                 if 'hillary' in self.terms_all or 'clinton' in self.terms_all:
-                    self.terms_hillary.extend(self.terms_all)
+                    self.terms_hillary.extend(row[5])
                 if 'trump' in self.terms_all or 'donald' in self.terms_all:
-                    self.terms_trump.extend(self.terms_all)
+                    self.terms_trump.extend(row[5])
 
                 self.twitter_data.append(row)
             else:
@@ -175,6 +176,7 @@ def main():
     app.create_counters()
     app.create_tfidf()
     app.save_dataframe()
+    pdb.set_trace()
 
 if __name__ == '__main__':
     main()
