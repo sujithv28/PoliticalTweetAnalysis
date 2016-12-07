@@ -13,12 +13,13 @@ import numpy as np
 import pdb
 import cPickle as pickle
 import vincent
+import os, pwd
 from collections import Counter, defaultdict
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem.porter import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
-import os, pwd
+from sklearn.metrics.pairwise import linear_kernel
 
 # Helper methods which tokenize, and convert the content string
 # to a list of words (can also handle #'s, @'s, etc)
@@ -95,7 +96,8 @@ class App:
                 self.corpus.append(unicode_tweet)
 
                 row[5] = [term for term in preprocess(row[5]) if term not in stop]
-                self.terms_filtered.extend([term for term in row[5] if not term.startswith(('#', '@'))])
+                filtered_list = [term for term in row[5] if not term.startswith(('#', '@'))]
+                self.terms_filtered.extend(filtered_list)
                 self.terms_all.extend(row[5])
 
                 if 'hillary' in self.terms_all or 'clinton' in self.terms_all:
@@ -138,8 +140,18 @@ class App:
         densetweets = dense[0].tolist()[0]
         phrase_scores = [pair for pair in zip(range(0, len(densetweets)), densetweets) if pair[1] > 0]
         sorted_phrase_scores = sorted(phrase_scores, key=lambda t: t[1] * -1)
-        for phrase, score in [(feature_names[word_id], score) for (word_id, score) in sorted_phrase_scores][:20]:
-           print('{0: <20} {1}'.format(phrase, score))
+        for phrase, score in [(feature_names[word_id], score) for (word_id, score) in sorted_phrase_scores][:len(sorted_phrase_scores)]:
+           print('{0: <40} {1}'.format(phrase, score))
+
+    def find_consine_similar(self, tfidf_matrix, index, top_n = 5):
+        cosine_similarities = linear_kernel(self.tfidf_matrix[index:index+1], self.tfidf_matrix).flatten()
+        related_docs_indices = [i for i in cosine_similarities.argsort()[::-1] if i != index]
+        return [(index, cosine_similarities[index]) for index in related_docs_indices][0:top_n]
+
+    def print_cosine_similar(self):
+        print('\nTweets Similar To: %s \n' % (self.corpus[15]))
+        for index, score in self.find_consine_similar(self.tfidf_matrix, 15):
+            print('%.2f  ->  %s' % (score, self.corpus[index]))
 
     def save_dataframe(self):
         np.save(open(self.fname, 'w'), self.data)
@@ -171,7 +183,7 @@ def main():
     import sys
 
     username = pwd.getpwuid( os.getuid() )[ 0 ]
-    
+
     temp_subset_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/US_all_tweets/temp_subset.csv'.format(username))
     all_tweets_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/US_all_tweets/all_tweets.csv'.format(username))
     app = App(temp_subset_file)
@@ -179,9 +191,11 @@ def main():
     app.load_data()
     app.create_counters()
     app.create_tfidf()
-    app.save_dataframe()
-    pdb.set_trace()
+    app.print_cosine_similar()
+    # app.save_dataframe()
+
+    print('\n')
+    # pdb.set_trace()
 
 if __name__ == '__main__':
     main()
-    print('\n')
