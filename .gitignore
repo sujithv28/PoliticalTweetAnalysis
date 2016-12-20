@@ -1,3 +1,7 @@
+# Ignore binary data #
+tweets_dataframe
+*.pickle
+
 # System #
 *~
 *.lock
