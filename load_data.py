@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 # Python 2/3 compatibility
 from __future__ import print_function
@@ -14,6 +15,7 @@ import pdb
 import cPickle as pickle
 import vincent
 import os, pwd
+import HTMLParser
 from collections import Counter, defaultdict
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
@@ -76,6 +78,7 @@ class App:
         self.terms_all = []
         self.terms_trump = []
         self.terms_hillary = []
+        self.geo_data = []
         self.terms_all_counter = Counter()
         self.terms_filtered_counter = Counter()
         self.tfidf_matrix = None
@@ -87,23 +90,32 @@ class App:
             # Append every row after header to list
             if i>0:
                 if (i%1000 == 0):
-                    print('Analyzed %10d' % (i))
-                # Filter out "RT" text if it's a retweet
-                if len(row[5])>2 and row[5][:2] == 'RT':
-                    row[5] = row[5][3:]
+                    print('[INFO] Analyzed %10d' % (i))
 
-                unicode_tweet = unicode(row[5], errors='replace')
+                # Filter out "RT" text if it's a retweet
+                if len(row[4])>2 and row[4][:2] == 'RT':
+                    row[4] = row[4][3:]
+
+                unicode_tweet = unicode(row[4], errors='replace')
                 self.corpus.append(unicode_tweet)
 
-                row[5] = [term for term in preprocess(row[5]) if term not in stop]
-                filtered_list = [term for term in row[5] if not term.startswith(('#', '@'))]
+                row[4] = [term for term in preprocess(row[4]) if term not in stop]
+                filtered_list = [term for term in row[4] if not term.startswith(('#', '@'))]
                 self.terms_filtered.extend(filtered_list)
-                self.terms_all.extend(row[5])
+                self.terms_all.extend(row[4])
 
                 if 'hillary' in self.terms_all or 'clinton' in self.terms_all:
                     self.terms_hillary.extend(row[5])
                 if 'trump' in self.terms_all or 'donald' in self.terms_all:
                     self.terms_trump.extend(row[5])
+
+                if (row[7] != ''):
+                    locations_str = row[7].replace('[','').split('],')
+                    lists = [map(float, s.replace(']','').split(',')) for s in locations_str]
+                    row[7] = lists
+                else:
+                    row[7] = []
+                print(type(row[7]))
 
                 self.twitter_data.append(row)
             else:
@@ -186,7 +198,9 @@ def main():
 
     temp_subset_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/US_all_tweets/temp_subset.csv'.format(username))
     all_tweets_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/US_all_tweets/all_tweets.csv'.format(username))
-    app = App(temp_subset_file)
+    geo_tweets_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/geo_time_tweets_fixed/fixed_geo.csv'.format(username))
+    temp_geo_tweets_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/geo_time_tweets_fixed/temp_geo.csv'.format(username))
+    app = App(temp_geo_tweets_file)
     # app.load_dataframe()
     app.load_data()
     app.create_counters()
