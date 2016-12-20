@@ -82,7 +82,7 @@ class App:
         self.terms_all_counter = Counter()
         self.terms_filtered_counter = Counter()
         self.tfidf_matrix = None
-        self.fname = 'tweets_dataframe'
+        self.fname = 'tweets_dataframe.pickle'
 
     def load_data(self):
         i = 0
