@@ -13,6 +13,7 @@ import numpy.lib
 import numpy as np
 import pdb
 import cPickle as pickle
+import argparse
 import vincent
 import os, pwd
 import HTMLParser
@@ -69,10 +70,10 @@ def preprocess(s, lowercase=False):
 
 class App:
     def __init__(self, file_name):
-        self.csv_f = csv.reader(file_name)
+        self.file_name = file_name
         self.twitter_data = []
         self.corpus = []
-        self.data = None
+        self.df = None
         self.headers = None
         self.terms_filtered = []
         self.terms_all = []
@@ -84,50 +85,58 @@ class App:
         self.tfidf_matrix = None
         self.fname = 'tweets_dataframe.pickle'
 
-    def load_data(self):
+    def tweet_to_list(self, str):
+        # Filter out "RT" text if it's a retweet
+        if len(str)>2 and str[:2] == 'RT':
+            str = str[3:]
+        list = [term for term in preprocess(str) if term not in stop]
+        return list
+
+    def geostamp_to_list(self, str):
+        if (str != ''):
+            locations_str = str.replace('[','').split('],')
+            lists = [map(float, s.replace(']','').split(',')) for s in locations_str]
+            list = lists
+        else:
+            list = []
+        return list
+
+    def str_to_bool(self, val):
+        if (val == 1):
+            return True
+        else:
+            return False
+
+    def load_data(self, load=False):
         i = 0
-        for row in self.csv_f:
-            # Append every row after header to list
-            if i>0:
-                if (i%1000 == 0):
-                    print('[INFO] Analyzed %10d' % (i))
+        if (load or not(os.path.exists(self.fname))):
+            print("Creating Data Frame from Scratch")
+            new_df = pd.read_csv(self.file_name)
+            new_df['Content'] = new_df.apply(lambda row: self.tweet_to_list(row['Content']), axis=1)
+            new_df['Geostamp'] = new_df.apply(lambda row: self.geostamp_to_list(row['Geostamp']), axis=1)
+            new_df['isHillary'] = new_df.apply(lambda row: self.str_to_bool(row['isHillary']), axis=1)
+            new_df['isTrump'] = new_df.apply(lambda row: self.str_to_bool(row['isTrump']), axis=1)
+            self.df = new_df
+        else:
+            self.df = pd.read_pickle(self.fname)
+        print(list(self.df.columns.values))
+        print(self.df)
 
-                # Filter out "RT" text if it's a retweet
-                if len(row[4])>2 and row[4][:2] == 'RT':
-                    row[4] = row[4][3:]
+    def analyze_data(self):
+        for index, row in self.df.iterrows():
+            str = ' '.join(row['Content'])
+            unicode_tweet = unicode(str, errors='replace')
+            self.corpus.append(unicode_tweet)
+            
+            self.terms_all.extend(row['Content'])
+            filtered_list = [term for term in row['Content'] if not term.startswith(('#', '@'))]
+            self.terms_filtered.extend(filtered_list)
 
-                unicode_tweet = unicode(row[4], errors='replace')
-                self.corpus.append(unicode_tweet)
-
-                row[4] = [term for term in preprocess(row[4]) if term not in stop]
-                filtered_list = [term for term in row[4] if not term.startswith(('#', '@'))]
-                self.terms_filtered.extend(filtered_list)
-                self.terms_all.extend(row[4])
-
-                if 'hillary' in self.terms_all or 'clinton' in self.terms_all:
-                    self.terms_hillary.extend(row[5])
-                if 'trump' in self.terms_all or 'donald' in self.terms_all:
-                    self.terms_trump.extend(row[5])
-
-                if (row[7] != ''):
-                    locations_str = row[7].replace('[','').split('],')
-                    lists = [map(float, s.replace(']','').split(',')) for s in locations_str]
-                    row[7] = lists
-                else:
-                    row[7] = []
-                print(type(row[7]))
-
-                self.twitter_data.append(row)
+            if(row['isHillary']):
+                self.terms_hillary.extend(row['Content'])
             else:
-                # Save Column Headers (First row of CSV File)
-                self.headers = row
-            i+=1
-
-            # Construct Pandas Data Frame from List
-            self.data = pd.DataFrame(self.twitter_data, columns=self.headers)
-            # Count terms only once, equivalent to Document Frequency
-            self.terms_single = set(self.terms_filtered)
-
+                self.terms_hillary.extend(row['Content'])
+        self.terms_single = set(self.terms_filtered)
 
     def create_counters(self):
         # Print out 10 most frequent words filtered
@@ -165,32 +174,6 @@ class App:
         for index, score in self.find_cosine_similar(self.tfidf_matrix, 15):
             print('%.2f  ->  %s' % (score, self.corpus[index]))
 
-    def save_dataframe(self):
-        np.save(open(self.fname, 'w'), self.data)
-        if len(self.data.shape) == 2:
-            meta = self.data.index,self.data.columns
-        elif len(self.data.shape) == 1:
-            meta = (self.data.index,)
-        else:
-            raise ValueError('save_pandas: Cannot save this type')
-        s = pickle.dumps(meta)
-        s = s.encode('string_escape')
-        with open(self.fname, 'a') as f:
-            f.seek(0, 2)
-            f.write(s)
-
-    def load_dataframe(self):
-        values = np.load(self.fname, mmap_mode=mmap_mode)
-        with open(self.fname) as f:
-            numpy.lib.format.read_magic(f)
-            numpy.lib.format.read_array_header_1_0(f)
-            f.seek(values.dtype.alignment*values.size, 1)
-            meta = pickle.loads(f.readline().decode('string_escape'))
-        if len(meta) == 2:
-            return pd.DataFrame(values, index=meta[0], columns=meta[1])
-        elif len(meta) == 1:
-            return pd.Series(values, index=meta[0])
-
 def main():
     import sys
 
@@ -201,12 +184,18 @@ def main():
     geo_tweets_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/geo_time_tweets_fixed/fixed_geo.csv'.format(username))
     temp_geo_tweets_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/geo_time_tweets_fixed/temp_geo.csv'.format(username))
     app = App(temp_geo_tweets_file)
-    # app.load_dataframe()
-    app.load_data()
+
+    parser = argparse.ArgumentParser(description='Analyze Political Twitter Data')
+    parser.add_argument("-l", "--load", action="store_true", required=False,
+                        help="Loads a CSV file from scratch rather than using existing Dataframe.")
+    args = parser.parse_args()
+
+    app.load_data(args.load)
+    app.analyze_data()
     app.create_counters()
     app.create_tfidf()
     app.print_cosine_similar()
-    # app.save_dataframe()
+    app.df.to_pickle(app.fname)
 
     print('\n')
     # pdb.set_trace()
