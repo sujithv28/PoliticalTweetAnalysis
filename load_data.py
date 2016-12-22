@@ -23,6 +23,7 @@ from nltk.corpus import stopwords
 from nltk.stem.porter import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
+from datetime import datetime
 
 # Helper methods which tokenize, and convert the content string
 # to a list of words (can also handle #'s, @'s, etc)
@@ -85,49 +86,54 @@ class App:
         self.tfidf_matrix = None
         self.fname = 'tweets_dataframe.pickle'
 
-    def tweet_to_list(self, str):
+    def tweet_to_list(self, tweet):
         # Filter out "RT" text if it's a retweet
-        if len(str)>2 and str[:2] == 'RT':
-            str = str[3:]
-        list = [term for term in preprocess(str) if term not in stop]
+        if len(tweet)>2 and tweet[:2] == 'RT':
+            tweet = tweet[3:]
+        list = [term for term in preprocess(tweet) if term not in stop]
         return list
 
-    def geostamp_to_list(self, str):
-        if (str != ''):
-            locations_str = str.replace('[','').split('],')
-            lists = [map(float, s.replace(']','').split(',')) for s in locations_str]
-            list = lists
-        else:
-            list = []
+    def geostamp_to_list(self, geostamp_str):
+        list = []
+        try:
+            if (geostamp_str != ''):
+                locations_str = geostamp_str.replace('[','').split('],')
+                lists = [map(float, s.replace(']','').split(',')) for s in locations_str]
+                list = lists
+        except ValueError, e:
+            print(geostamp_str)
         return list
 
-    def str_to_bool(self, val):
-        if (val == 1):
-            return True
-        else:
-            return False
+    def timestr_to_datetime(self, timestr):
+        time = None
+        try:
+            time = datetime.strptime(timestr, '%m/%d/%Y %H:%M:%S')
+        except ValueError, e:
+            print(timestr)
+        return time
 
     def load_data(self, load=False):
         i = 0
         if (load or not(os.path.exists(self.fname))):
-            print("Creating Data Frame from Scratch")
-            new_df = pd.read_csv(self.file_name)
+            print("[INFO] Creating Data Frame from Scratch.")
+            new_df = pd.read_csv(self.file_name, dtype={'Geostamp': str})
             new_df['Content'] = new_df.apply(lambda row: self.tweet_to_list(row['Content']), axis=1)
             new_df['Geostamp'] = new_df.apply(lambda row: self.geostamp_to_list(row['Geostamp']), axis=1)
-            new_df['isHillary'] = new_df.apply(lambda row: self.str_to_bool(row['isHillary']), axis=1)
-            new_df['isTrump'] = new_df.apply(lambda row: self.str_to_bool(row['isTrump']), axis=1)
+            new_df['isHillary'] = new_df.apply(lambda row: bool(row['isHillary']), axis=1)
+            new_df['Timestamp'] = new_df.apply(lambda row: self.timestr_to_datetime(row['Date'] + ' ' + row['Time']), axis=1)
+            new_df.drop(new_df.columns[len(new_df.columns)-1], axis=1, inplace=True)
             self.df = new_df
         else:
+            print("[INFO] Using Data Frame from Pickle File.")
             self.df = pd.read_pickle(self.fname)
         print(list(self.df.columns.values))
-        print(self.df)
 
     def analyze_data(self):
         for index, row in self.df.iterrows():
             str = ' '.join(row['Content'])
             unicode_tweet = unicode(str, errors='replace')
             self.corpus.append(unicode_tweet)
-            
+
             self.terms_all.extend(row['Content'])
             filtered_list = [term for term in row['Content'] if not term.startswith(('#', '@'))]
             self.terms_filtered.extend(filtered_list)
@@ -140,20 +146,20 @@ class App:
 
     def create_counters(self):
         # Print out 10 most frequent words filtered
-        print('\nFiltered Frequency:')
+        print('\n[INFO] Filtered Frequency:')
         self.terms_filtered_counter = Counter(self.terms_filtered)
         for word, count in self.terms_filtered_counter.most_common(15):
             print('{0}: {1}'.format(word, count))
 
         # Print out 10 most unfiltered frequent words
-        print('\nUnfiltered Frequency:')
+        print('\n[INFO] Unfiltered Frequency:')
         self.terms_all_counter = Counter(self.terms_filtered)
         for word, count in self.terms_all_counter.most_common(15):
             print('{0}: {1}'.format(word, count))
 
     def create_tfidf(self):
         # Print and generate tfidf matrix from all the tweets
-        print('\nTf-Idf Vectors:')
+        print('\n[INFO] Tf-Idf Vectors:')
         tf = TfidfVectorizer(analyzer='word', ngram_range=(1,3), min_df = 0, stop_words = 'english')
         self.tfidf_matrix =  tf.fit_transform(self.corpus)
         feature_names = tf.get_feature_names()
@@ -170,12 +176,14 @@ class App:
         return [(index, cosine_similarities[index]) for index in related_docs_indices][0:top_n]
 
     def print_cosine_similar(self):
-        print('\nTweets Similar To: %s \n' % (self.corpus[15]))
-        for index, score in self.find_cosine_similar(self.tfidf_matrix, 15):
+        print('\n[INFO] Tweets Similar To: %s \n' % (self.corpus[20]))
+        for index, score in self.find_cosine_similar(self.tfidf_matrix, 20):
             print('%.2f  ->  %s' % (score, self.corpus[index]))
 
 def main():
     import sys
+    reload(sys)
+    sys.setdefaultencoding('utf-8')
 
     username = pwd.getpwuid( os.getuid() )[ 0 ]
 
@@ -183,6 +191,7 @@ def main():
     all_tweets_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/US_all_tweets/all_tweets.csv'.format(username))
     geo_tweets_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/geo_time_tweets_fixed/fixed_geo.csv'.format(username))
     temp_geo_tweets_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/geo_time_tweets_fixed/temp_geo.csv'.format(username))
+    temp_geo_tweets_100000_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/geo_time_tweets_fixed/temp_geo_100000.csv'.format(username))
     app = App(temp_geo_tweets_file)
 
     parser = argparse.ArgumentParser(description='Analyze Political Twitter Data')
@@ -195,6 +204,7 @@ def main():
     app.create_counters()
     app.create_tfidf()
     app.print_cosine_similar()
+    # Save Dataframe
     app.df.to_pickle(app.fname)
 
     print('\n')
