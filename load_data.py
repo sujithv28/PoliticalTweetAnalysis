@@ -17,6 +17,7 @@ import argparse
 import vincent
 import os, pwd
 import HTMLParser
+import json
 from collections import Counter, defaultdict
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
@@ -69,6 +70,13 @@ def preprocess(s, lowercase=False):
         tokens = [token if emoticon_re.search(token) else token.lower() for token in tokens]
     return tokens
 
+def extract_http_link(s):
+    r = r'https?://[^\s<>"]+|www\.[^\s<>"]+'
+    match = re.search(r, s)
+    if match:
+        return match.group()
+    return ''
+
 class App:
     def __init__(self, file_name):
         self.file_name = file_name
@@ -85,6 +93,10 @@ class App:
         self.terms_filtered_counter = Counter()
         self.tfidf_matrix = None
         self.fname = 'tweets_dataframe.pickle'
+        self.geo_data = {
+            "type": "FeatureCollection",
+            "features": []
+        }
 
     def tweet_to_list(self, tweet):
         # Filter out "RT" text if it's a retweet
@@ -126,22 +138,40 @@ class App:
         else:
             print("[INFO] Using Data Frame from Pickle File.")
             self.df = pd.read_pickle(self.fname)
-        print(list(self.df.columns.values))
+        # print(list(self.df.columns.values))
+        # print(self.df.dtypes)
+        # print(self.df.head(1))
 
     def analyze_data(self):
-        for index, row in self.df.iterrows():
-            str = ' '.join(row['Content'])
+        for index, tweet in self.df.iterrows():
+            str = ' '.join(tweet['Content'])
             unicode_tweet = unicode(str, errors='replace')
             self.corpus.append(unicode_tweet)
 
-            self.terms_all.extend(row['Content'])
-            filtered_list = [term for term in row['Content'] if not term.startswith(('#', '@'))]
+            self.terms_all.extend(tweet['Content'])
+            filtered_list = [term for term in tweet['Content'] if not term.startswith(('#', '@'))]
             self.terms_filtered.extend(filtered_list)
 
-            if(row['isHillary']):
-                self.terms_hillary.extend(row['Content'])
+            if(tweet['isHillary']):
+                self.terms_hillary.extend(tweet['Content'])
             else:
-                self.terms_hillary.extend(row['Content'])
+                self.terms_hillary.extend(tweet['Content'])
+
+            if tweet['Geostamp']:
+                time = tweet['Timestamp'].strftime('%m/%d/%Y %H:%M:%S').encode('utf-8').strip()
+                latlang = tweet['Geostamp'][0]
+                latlang[0], latlang[1] = latlang[1], latlang[0]
+                coordinates = {'coordinates': latlang, 'type': 'Point'}
+                geo_json_feature = {
+                    "type": "Feature",
+                    "geometry": coordinates,
+                    "properties": {
+                        "text": unicode_tweet,
+                        "created_at": time
+                    }
+                }
+                self.geo_data['features'].append(geo_json_feature)
+
         self.terms_single = set(self.terms_filtered)
 
     def create_counters(self):
@@ -176,9 +206,14 @@ class App:
         return [(index, cosine_similarities[index]) for index in related_docs_indices][0:top_n]
 
     def print_cosine_similar(self):
-        print('\n[INFO] Tweets Similar To: %s \n' % (self.corpus[20]))
+        print('\n[INFO] Tweets Similar To: %s' % (self.corpus[20]))
         for index, score in self.find_cosine_similar(self.tfidf_matrix, 20):
             print('%.2f  ->  %s' % (score, self.corpus[index]))
+
+    def analyze_geodata(self):
+        with open('geo_data.json', 'w') as fout:
+            print('\n[INFO] Dumped geo data into geo_data.json')
+            fout.write(json.dumps(self.geo_data, indent=4))
 
 def main():
     import sys
@@ -206,8 +241,9 @@ def main():
     app.print_cosine_similar()
     # Save Dataframe
     app.df.to_pickle(app.fname)
+    app.analyze_geodata()
 
-    print('\n')
+    print()
     # pdb.set_trace()
 
 if __name__ == '__main__':
