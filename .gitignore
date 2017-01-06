@@ -1,6 +1,7 @@
 # Ignore binary data #
 tweets_dataframe
 *.pickle
+*.json
 
 # System #
 *~
