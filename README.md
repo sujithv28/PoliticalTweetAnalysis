@@ -22,3 +22,12 @@ From here, you should be able to run
 	python load_data.py
 
 ... Hopefully.
+
+## Visualize Geo Data
+
+To visualize where each tweet came from using Leaflet.js, run this command to create the geo_data.json file:
+
+	python -m SimpleHTTPServer 8888
+
+and then open visualize_geodata.html on your browswer. You should then be able to interact with a map containing all the tweets and their origin.
+
