@@ -113,7 +113,7 @@ class App:
                 lists = [map(float, s.replace(']','').split(',')) for s in locations_str]
                 list = lists
         except ValueError, e:
-            print(geostamp_str)
+            print('Error: %s' % (geostamp_str))
         return list
 
     def timestr_to_datetime(self, timestr):
@@ -121,11 +121,10 @@ class App:
         try:
             time = datetime.strptime(timestr, '%m/%d/%Y %H:%M:%S')
         except ValueError, e:
-            print(timestr)
+            print('Error: %s' % (timestr))
         return time
 
     def load_data(self, load=False):
-        i = 0
         if (load or not(os.path.exists(self.fname))):
             print("[INFO] Creating Data Frame from Scratch.")
             new_df = pd.read_csv(self.file_name, dtype={'Geostamp': str})
@@ -155,7 +154,7 @@ class App:
             if(tweet['isHillary']):
                 self.terms_hillary.extend(tweet['Content'])
             else:
-                self.terms_hillary.extend(tweet['Content'])
+                self.terms_trump.extend(tweet['Content'])
 
             if tweet['Geostamp']:
                 time = tweet['Timestamp'].strftime('%m/%d/%Y %H:%M:%S').encode('utf-8').strip()
