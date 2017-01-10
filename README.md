@@ -19,7 +19,7 @@ and selecting either `all-corpora` from the GUI that pops up, or (better option!
 
 From here, you should be able to run
 
-	python load_data.py
+	python analyze.py
 
 ... Hopefully.
 
