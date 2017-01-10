@@ -151,14 +151,14 @@ class App:
         for index, tweet in self.df.iterrows():
             # Temporary Fix
             tweet['Content'] = [term.lower() for term in tweet['Content']]
-            
+
             str = ' '.join(tweet['Content'])
             unicode_tweet = unicode(str, errors='replace')
             self.corpus.append(unicode_tweet)
 
-            self.terms['all'].extend(tweet['Content'])
             filtered_list = [term for term in tweet['Content'] if not term.startswith(('#', '@'))]
             self.terms['filtered'].extend(tweet['Content'])
+            self.terms['all'].extend(tweet['Content'])
 
             if(tweet['isHillary']):
                 self.terms['hillary'].extend(tweet['Content'])
