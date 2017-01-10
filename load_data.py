@@ -84,26 +84,32 @@ class App:
         self.corpus = []
         self.df = None
         self.headers = None
-        self.terms_filtered = []
-        self.terms_all = []
-        self.terms_trump = []
-        self.terms_hillary = []
+        self.terms = {
+            'all': [],
+            'filtered': [],
+            'hillary': [],
+            'trump': [],
+            'positive': [],
+            'neutral': [],
+            'negative': []
+        }
         self.geo_data = []
         self.terms_all_counter = Counter()
         self.terms_filtered_counter = Counter()
         self.tfidf_matrix = None
         self.fname = 'tweets_dataframe.pickle'
         self.geo_data = {
-            "type": "FeatureCollection",
-            "features": []
+            'type': 'FeatureCollection',
+            'features': []
         }
 
     def tweet_to_list(self, tweet):
-        # Filter out "RT" text if it's a retweet
+        # Filter out 'RT' text if it's a retweet
         if len(tweet)>2 and tweet[:2] == 'RT':
             tweet = tweet[3:]
-        list = [term for term in preprocess(tweet) if term not in stop]
-        return list
+        l = [term for term in preprocess(tweet) if term not in stop]
+        l = [item.lower() for item in l]
+        return l
 
     def geostamp_to_list(self, geostamp_str):
         list = []
@@ -126,7 +132,7 @@ class App:
 
     def load_data(self, load=False):
         if (load or not(os.path.exists(self.fname))):
-            print("[INFO] Creating Data Frame from Scratch.")
+            print('[INFO] Creating Data Frame from Scratch.')
             new_df = pd.read_csv(self.file_name, dtype={'Geostamp': str})
             new_df['Content'] = new_df.apply(lambda row: self.tweet_to_list(row['Content']), axis=1)
             new_df['Geostamp'] = new_df.apply(lambda row: self.geostamp_to_list(row['Geostamp']), axis=1)
@@ -135,7 +141,7 @@ class App:
             new_df.drop(new_df.columns[len(new_df.columns)-1], axis=1, inplace=True)
             self.df = new_df
         else:
-            print("[INFO] Using Data Frame from Pickle File.")
+            print('[INFO] Using Data Frame from Pickle File.')
             self.df = pd.read_pickle(self.fname)
         # print(list(self.df.columns.values))
         # print(self.df.dtypes)
@@ -143,18 +149,28 @@ class App:
 
     def analyze_data(self):
         for index, tweet in self.df.iterrows():
+            # Temporary Fix
+            tweet['Content'] = [term.lower() for term in tweet['Content']]
+            
             str = ' '.join(tweet['Content'])
             unicode_tweet = unicode(str, errors='replace')
             self.corpus.append(unicode_tweet)
 
-            self.terms_all.extend(tweet['Content'])
+            self.terms['all'].extend(tweet['Content'])
             filtered_list = [term for term in tweet['Content'] if not term.startswith(('#', '@'))]
-            self.terms_filtered.extend(filtered_list)
+            self.terms['filtered'].extend(tweet['Content'])
 
             if(tweet['isHillary']):
-                self.terms_hillary.extend(tweet['Content'])
+                self.terms['hillary'].extend(tweet['Content'])
             else:
-                self.terms_trump.extend(tweet['Content'])
+                self.terms['trump'].extend(tweet['Content'])
+
+            if tweet['Compound'] > 0:
+                self.terms['positive'].extend(tweet['Content'])
+            elif tweet['Compound'] < 0:
+                self.terms['negative'].extend(tweet['Content'])
+            else:
+                self.terms['neutral'].extend(tweet['Content'])
 
             if tweet['Geostamp']:
                 time = tweet['Timestamp'].strftime('%m/%d/%Y %H:%M:%S').encode('utf-8').strip()
@@ -162,27 +178,25 @@ class App:
                 latlang[0], latlang[1] = latlang[1], latlang[0]
                 coordinates = {'coordinates': latlang, 'type': 'Point'}
                 geo_json_feature = {
-                    "type": "Feature",
-                    "geometry": coordinates,
-                    "properties": {
-                        "text": unicode_tweet,
-                        "created_at": time
+                    'type': 'Feature',
+                    'geometry': coordinates,
+                    'properties': {
+                        'text': unicode_tweet,
+                        'created_at': time
                     }
                 }
                 self.geo_data['features'].append(geo_json_feature)
 
-        self.terms_single = set(self.terms_filtered)
-
     def create_counters(self):
         # Print out 10 most frequent words filtered
         print('\n[INFO] Filtered Frequency:')
-        self.terms_filtered_counter = Counter(self.terms_filtered)
+        self.terms_filtered_counter = Counter(self.terms['filtered'])
         for word, count in self.terms_filtered_counter.most_common(15):
             print('{0}: {1}'.format(word, count))
 
         # Print out 10 most unfiltered frequent words
         print('\n[INFO] Unfiltered Frequency:')
-        self.terms_all_counter = Counter(self.terms_filtered)
+        self.terms_all_counter = Counter(self.terms['all'])
         for word, count in self.terms_all_counter.most_common(15):
             print('{0}: {1}'.format(word, count))
 
@@ -229,8 +243,8 @@ def main():
     app = App(temp_geo_tweets_file)
 
     parser = argparse.ArgumentParser(description='Analyze Political Twitter Data')
-    parser.add_argument("-l", "--load", action="store_true", required=False,
-                        help="Loads a CSV file from scratch rather than using existing Dataframe.")
+    parser.add_argument('-l', '--load', action='store_true', required=False,
+                        help='Loads a CSV file from scratch rather than using existing Dataframe.')
     args = parser.parse_args()
 
     app.load_data(args.load)
