@@ -4,27 +4,19 @@
 # Python 2/3 compatibility
 from __future__ import print_function
 
-import csv
-import operator
+import argparse
+import json
+import os
+import pwd
 import re
 import string
+from collections import Counter
+from datetime import datetime
+
 import pandas as pd
-import numpy.lib
-import numpy as np
-import pdb
-import cPickle as pickle
-import argparse
-import vincent
-import os, pwd
-import HTMLParser
-import json
-from collections import Counter, defaultdict
-from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from nltk.stem.porter import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
-from datetime import datetime
 
 # Helper methods which tokenize, and convert the content string
 # to a list of words (can also handle #'s, @'s, etc)
@@ -37,14 +29,14 @@ emoticons_str = r"""
 
 regex_str = [
     emoticons_str,
-    r'<[^>]+>', # HTML tags
-    r'(?:@[\w_]+)', # @-mentions
-    r"(?:\#+[\w_]+[\w\'_\-]*[\w_]+)", # hash-tags
-    r'http[s]?://(?:[a-z]|[0-9]|[$-_@.&amp;+]|[!*\(\),]|(?:%[0-9a-f][0-9a-f]))+', # URLs
-    r'(?:(?:\d+,?)+(?:\.?\d+)?)', # numbers
-    r"(?:[a-z][a-z'\-_]+[a-z])", # words with - and '
-    r'(?:[\w_]+)', # other words
-    r'(?:\S)' # anything else
+    r'<[^>]+>',  # HTML tags
+    r'(?:@[\w_]+)',  # @-mentions
+    r"(?:\#+[\w_]+[\w\'_\-]*[\w_]+)",  # hash-tags
+    r'http[s]?://(?:[a-z]|[0-9]|[$-_@.&amp;+]|[!*\(\),]|(?:%[0-9a-f][0-9a-f]))+',  # URLs
+    r'(?:(?:\d+,?)+(?:\.?\d+)?)',  # numbers
+    r"(?:[a-z][a-z'\-_]+[a-z])",  # words with - and '
+    r'(?:[\w_]+)',  # other words
+    r'(?:\S)'  # anything else
 ]
 
 positive_vocab = [
@@ -58,11 +50,13 @@ negative_vocab = [
 
 punctuation = list(string.punctuation)
 stop = stopwords.words('english') + punctuation + ['rt', 'via', '...', 'I']
-tokens_re = re.compile(r'('+'|'.join(regex_str)+')', re.VERBOSE | re.IGNORECASE)
-emoticon_re = re.compile(r'^'+emoticons_str+'$', re.VERBOSE | re.IGNORECASE)
+tokens_re = re.compile(r'(' + '|'.join(regex_str) + ')', re.VERBOSE | re.IGNORECASE)
+emoticon_re = re.compile(r'^' + emoticons_str + '$', re.VERBOSE | re.IGNORECASE)
+
 
 def tokenize(s):
     return tokens_re.findall(s)
+
 
 def preprocess(s, lowercase=False):
     tokens = tokenize(s)
@@ -70,12 +64,14 @@ def preprocess(s, lowercase=False):
         tokens = [token if emoticon_re.search(token) else token.lower() for token in tokens]
     return tokens
 
+
 def extract_http_link(s):
     r = r'https?://[^\s<>"]+|www\.[^\s<>"]+'
     match = re.search(r, s)
     if match:
         return match.group()
     return ''
+
 
 class App:
     def __init__(self, file_name):
@@ -105,7 +101,7 @@ class App:
 
     def tweet_to_list(self, tweet):
         # Filter out 'RT' text if it's a retweet
-        if len(tweet)>2 and tweet[:2] == 'RT':
+        if len(tweet) > 2 and tweet[:2] == 'RT':
             tweet = tweet[3:]
         l = [term for term in preprocess(tweet) if term not in stop]
         l = [item.lower() for item in l]
@@ -115,8 +111,8 @@ class App:
         list = []
         try:
             if (geostamp_str != ''):
-                locations_str = geostamp_str.replace('[','').split('],')
-                lists = [map(float, s.replace(']','').split(',')) for s in locations_str]
+                locations_str = geostamp_str.replace('[', '').split('],')
+                lists = [map(float, s.replace(']', '').split(',')) for s in locations_str]
                 list = lists
         except ValueError, e:
             print('Error: %s' % (geostamp_str))
@@ -131,21 +127,22 @@ class App:
         return time
 
     def load_data(self, load=False):
-        if (load or not(os.path.exists(self.fname))):
+        if (load or not (os.path.exists(self.fname))):
             print('[INFO] Creating Data Frame from Scratch.')
             new_df = pd.read_csv(self.file_name, dtype={'Geostamp': str})
             new_df['Content'] = new_df.apply(lambda row: self.tweet_to_list(row['Content']), axis=1)
             new_df['Geostamp'] = new_df.apply(lambda row: self.geostamp_to_list(row['Geostamp']), axis=1)
             new_df['isHillary'] = new_df.apply(lambda row: bool(row['isHillary']), axis=1)
-            new_df['Timestamp'] = new_df.apply(lambda row: self.timestr_to_datetime(row['Date'] + ' ' + row['Time']), axis=1)
-            new_df.drop(new_df.columns[len(new_df.columns)-1], axis=1, inplace=True)
+            new_df['Timestamp'] = new_df.apply(lambda row: self.timestr_to_datetime(row['Date'] + ' ' + row['Time']),
+                                               axis=1)
+            new_df.drop(new_df.columns[len(new_df.columns) - 1], axis=1, inplace=True)
             self.df = new_df
         else:
             print('[INFO] Using Data Frame from Pickle File.')
             self.df = pd.read_pickle(self.fname)
-        # print(list(self.df.columns.values))
-        # print(self.df.dtypes)
-        # print(self.df.head(1))
+            # print(list(self.df.columns.values))
+            # print(self.df.dtypes)
+            # print(self.df.head(1))
 
     def analyze_data(self):
         for index, tweet in self.df.iterrows():
@@ -160,7 +157,7 @@ class App:
             self.terms['filtered'].extend(tweet['Content'])
             self.terms['all'].extend(tweet['Content'])
 
-            if(tweet['isHillary']):
+            if (tweet['isHillary']):
                 self.terms['hillary'].extend(tweet['Content'])
             else:
                 self.terms['trump'].extend(tweet['Content'])
@@ -203,18 +200,19 @@ class App:
     def create_tfidf(self):
         # Print and generate tfidf matrix from all the tweets
         print('\n[INFO] Tf-Idf Vectors:')
-        tf = TfidfVectorizer(analyzer='word', ngram_range=(1,3), min_df = 0, stop_words = 'english')
-        self.tfidf_matrix =  tf.fit_transform(self.corpus)
+        tf = TfidfVectorizer(analyzer='word', ngram_range=(1, 3), min_df=0, stop_words='english')
+        self.tfidf_matrix = tf.fit_transform(self.corpus)
         feature_names = tf.get_feature_names()
         dense = self.tfidf_matrix.todense()
         densetweets = dense[0].tolist()[0]
         phrase_scores = [pair for pair in zip(range(0, len(densetweets)), densetweets) if pair[1] > 0]
         sorted_phrase_scores = sorted(phrase_scores, key=lambda t: t[1] * -1)
-        for phrase, score in [(feature_names[word_id], score) for (word_id, score) in sorted_phrase_scores][:len(sorted_phrase_scores)]:
-           print('{0: <40} {1}'.format(phrase, score))
+        for phrase, score in [(feature_names[word_id], score) for (word_id, score) in sorted_phrase_scores][
+                             :len(sorted_phrase_scores)]:
+            print('{0: <40} {1}'.format(phrase, score))
 
-    def find_cosine_similar(self, tfidf_matrix, index, top_n = 5):
-        cosine_similarities = linear_kernel(self.tfidf_matrix[index:index+1], self.tfidf_matrix).flatten()
+    def find_cosine_similar(self, tfidf_matrix, index, top_n=5):
+        cosine_similarities = linear_kernel(tfidf_matrix[index:index + 1], self.tfidf_matrix).flatten()
         related_docs_indices = [i for i in cosine_similarities.argsort()[::-1] if i != index]
         return [(index, cosine_similarities[index]) for index in related_docs_indices][0:top_n]
 
@@ -233,18 +231,21 @@ def main():
     reload(sys)
     sys.setdefaultencoding('utf-8')
 
-    username = pwd.getpwuid( os.getuid() )[ 0 ]
+    username = pwd.getpwuid(os.getuid())[0]
 
     temp_subset_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/US_all_tweets/temp_subset.csv'.format(username))
     all_tweets_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/US_all_tweets/all_tweets.csv'.format(username))
-    geo_tweets_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/geo_time_tweets_fixed/fixed_geo.csv'.format(username))
-    temp_geo_tweets_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/geo_time_tweets_fixed/temp_geo.csv'.format(username))
-    temp_geo_tweets_100000_file = open('/Users/{0:s}/Dropbox/US_UK_ElectionTweets/geo_time_tweets_fixed/temp_geo_100000.csv'.format(username))
+    geo_tweets_file = open(
+        '/Users/{0:s}/Dropbox/US_UK_ElectionTweets/geo_time_tweets_fixed/fixed_geo.csv'.format(username))
+    temp_geo_tweets_file = open(
+        '/Users/{0:s}/Dropbox/US_UK_ElectionTweets/geo_time_tweets_fixed/temp_geo.csv'.format(username))
+    temp_geo_tweets_100000_file = open(
+        '/Users/{0:s}/Dropbox/US_UK_ElectionTweets/geo_time_tweets_fixed/temp_geo_100000.csv'.format(username))
     app = App(temp_geo_tweets_file)
 
     parser = argparse.ArgumentParser(description='Analyze Political Twitter Data')
     parser.add_argument('-l', '--load', action='store_true', required=False,
-                        help='Loads a CSV file from scratch rather than using existing Dataframe.')
+                        help='Loads a CSV file from scratch rather than using existing Data-frame.')
     args = parser.parse_args()
 
     app.load_data(args.load)
@@ -258,6 +259,7 @@ def main():
 
     print()
     # pdb.set_trace()
+
 
 if __name__ == '__main__':
     main()
