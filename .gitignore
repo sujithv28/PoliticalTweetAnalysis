@@ -2,6 +2,7 @@
 tweets_dataframe
 *.pickle
 *.json
+.idea
 
 # System #
 *~
