@@ -17,6 +17,10 @@ Then, download corpora for NLTK (e.g., stopwords) by doing:
 
 and selecting either `all-corpora` from the GUI that pops up, or (better option!) browsing to the `corpora` tab and selecting only the `stopwords` corpus.
 
+Then, download corpora for TextBlob by doing:
+    
+    python -m textblob.download_corpora
+
 From here, you should be able to run
 
 	python analyze.py

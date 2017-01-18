@@ -4,27 +4,20 @@
 # Python 2/3 compatibility
 from __future__ import print_function
 
-import csv
-import operator
 import re
 import string
 import pandas as pd
-import numpy.lib
-import numpy as np
 import pdb
-import cPickle as pickle
 import argparse
 import vincent
-import os, pwd
-import HTMLParser
 import json
-from collections import Counter, defaultdict
-from nltk.tokenize import word_tokenize
+import os, pwd
+from collections import Counter
 from nltk.corpus import stopwords
-from nltk.stem.porter import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 from datetime import datetime
+from textblob import TextBlob
 
 # Helper methods which tokenize, and convert the content string
 # to a list of words (can also handle #'s, @'s, etc)
@@ -81,7 +74,14 @@ class App:
     def __init__(self, file_name):
         self.file_name = file_name
         self.twitter_data = []
-        self.corpus = []
+        self.corpus = {
+            'all': [],
+            'hillary': [],
+            'trump': [],
+            'positive': [],
+            'neutral': [],
+            'negative': []
+        }
         self.df = None
         self.headers = None
         self.terms = {
@@ -146,6 +146,14 @@ class App:
         # print(list(self.df.columns.values))
         # print(self.df.dtypes)
         # print(self.df.head(1))
+    
+    def get_label(self, sentiment):
+        if sentiment > 0:
+            return 'positive'
+        elif sentiment < 0:
+            return 'negative'
+        else:
+            return 'neutral'
 
     def analyze_data(self):
         for index, tweet in self.df.iterrows():
@@ -154,23 +162,22 @@ class App:
 
             str = ' '.join(tweet['Content'])
             unicode_tweet = unicode(str, errors='replace')
-            self.corpus.append(unicode_tweet)
+            self.corpus['all'].append(unicode_tweet)
+            
+            if(tweet['isHillary']):
+                self.terms['hillary'].extend(tweet['Content'])
+                self.corpus['hillary'].append(unicode_tweet)
+            else:
+                self.terms['trump'].extend(tweet['Content'])
+                self.corpus['trump'].append(unicode_tweet)
 
             filtered_list = [term for term in tweet['Content'] if not term.startswith(('#', '@'))]
             self.terms['filtered'].extend(tweet['Content'])
             self.terms['all'].extend(tweet['Content'])
 
-            if(tweet['isHillary']):
-                self.terms['hillary'].extend(tweet['Content'])
-            else:
-                self.terms['trump'].extend(tweet['Content'])
-
-            if tweet['Compound'] > 0:
-                self.terms['positive'].extend(tweet['Content'])
-            elif tweet['Compound'] < 0:
-                self.terms['negative'].extend(tweet['Content'])
-            else:
-                self.terms['neutral'].extend(tweet['Content'])
+            sentiment = self.get_label(tweet['Compound'])
+            self.terms[sentiment].extend(tweet['Content'])
+            self.corpus[sentiment].append(unicode_tweet)
 
             if tweet['Geostamp']:
                 time = tweet['Timestamp'].strftime('%m/%d/%Y %H:%M:%S').encode('utf-8').strip()
@@ -186,6 +193,18 @@ class App:
                     }
                 }
                 self.geo_data['features'].append(geo_json_feature)
+    
+    def analyze_sentiment(self):
+        print('\n[INFO] Sentiment Analysis')
+        print('\nPositive Tweets:')
+        for index in range(0, 5):
+            print(self.corpus['positive'][index])
+        print('\n\Negative Tweets:')
+        for index in range(0, 5):
+            print(self.corpus['negative'][index])
+        print('\n\Neutral Tweets:')
+        for index in range(0, 5):
+            print(self.corpus['neutral'][index])
 
     def create_counters(self):
         # Print out 10 most frequent words filtered
@@ -204,7 +223,7 @@ class App:
         # Print and generate tfidf matrix from all the tweets
         print('\n[INFO] Tf-Idf Vectors:')
         tf = TfidfVectorizer(analyzer='word', ngram_range=(1,3), min_df = 0, stop_words = 'english')
-        self.tfidf_matrix =  tf.fit_transform(self.corpus)
+        self.tfidf_matrix =  tf.fit_transform(self.corpus['all'])
         feature_names = tf.get_feature_names()
         dense = self.tfidf_matrix.todense()
         densetweets = dense[0].tolist()[0]
@@ -219,9 +238,9 @@ class App:
         return [(index, cosine_similarities[index]) for index in related_docs_indices][0:top_n]
 
     def print_cosine_similar(self):
-        print('\n[INFO] Tweets Similar To: %s' % (self.corpus[20]))
+        print('\n[INFO] Tweets Similar To: %s' % (self.corpus['all'][20]))
         for index, score in self.find_cosine_similar(self.tfidf_matrix, 20):
-            print('%.2f  ->  %s' % (score, self.corpus[index]))
+            print('%.2f  ->  %s' % (score, self.corpus['all'][index]))
 
     def analyze_geodata(self):
         with open('geo_data.json', 'w') as fout:
@@ -244,11 +263,12 @@ def main():
 
     parser = argparse.ArgumentParser(description='Analyze Political Twitter Data')
     parser.add_argument('-l', '--load', action='store_true', required=False,
-                        help='Loads a CSV file from scratch rather than using existing Dataframe.')
+                        help='-l Loads a CSV file from scratch rather than using existing Dataframe.')
     args = parser.parse_args()
 
     app.load_data(args.load)
     app.analyze_data()
+    app.analyze_sentiment()
     app.create_counters()
     app.create_tfidf()
     app.print_cosine_similar()
