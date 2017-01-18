@@ -2,6 +2,7 @@
 tweets_dataframe
 *.pickle
 *.json
+.idea
 
 # System #
 *~
@@ -82,3 +83,4 @@ nosetests.xml
 .mr.developer.cfg
 .project
 .pydevproject
+*.xml
