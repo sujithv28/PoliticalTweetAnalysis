@@ -9,13 +9,17 @@ import argparse
 import vincent
 import json
 import os, pwd
+import string
+import re
 import pandas as pd
-from collections import Counter
+from collections import Counter, defaultdict
 from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 from datetime import datetime
 from textblob import TextBlob
+from gensim import corpora, models, similarities
+from pprint import pprint
 
 # Helper methods which tokenize, and convert the content string
 # to a list of words (can also handle #'s, @'s, etc)
@@ -71,6 +75,11 @@ def extract_http_link(s):
         return match.group()
     return ''
 
+class MyCorpus(object):
+    def __iter__(self):
+        for line in open('mycorpus.txt'):
+            # assume there's one document per line, tokens separated by whitespace
+            yield dictionary.doc2bow(line.lower().split())
 
 class App:
     def __init__(self, file_name):
@@ -172,7 +181,7 @@ class App:
                 self.corpus['trump'].append(unicode_tweet)
 
             filtered_list = [term for term in tweet['Content'] if not term.startswith(('#', '@'))]
-            self.terms['filtered'].extend(tweet['Content'])
+            self.terms['filtered'].extend(filtered_list)
             self.terms['all'].extend(tweet['Content'])
 
             sentiment = self.get_label(tweet['Compound'])
@@ -194,18 +203,6 @@ class App:
                 }
                 self.geo_data['features'].append(geo_json_feature)
     
-    def analyze_sentiment(self):
-        print('\n[INFO] Sentiment Analysis')
-        print('\nPositive Tweets:')
-        for index in range(0, 5):
-            print(self.corpus['positive'][index])
-        print('\n\Negative Tweets:')
-        for index in range(0, 5):
-            print(self.corpus['negative'][index])
-        print('\n\Neutral Tweets:')
-        for index in range(0, 5):
-            print(self.corpus['neutral'][index])
-
     def create_counters(self):
         # Print out 10 most frequent words filtered
         print('\n[INFO] Filtered Frequency:')
@@ -247,7 +244,26 @@ class App:
         with open('geo_data.json', 'w') as fout:
             print('\n[INFO] Dumped geo data into geo_data.json')
             fout.write(json.dumps(self.geo_data, indent=4))
-
+            
+    def lda_topic_modeling(self):
+        texts = [[word for word in document.lower().split()] for document in self.corpus['all']]
+        frequency = defaultdict(int)
+        for text in texts:
+            for token in text:
+                frequency[token] += 1
+        texts = [[token for token in text if frequency[token] > 1] for text in texts]
+        dictionary = corpora.Dictionary(texts)
+        dictionary.save('tweet_dictionary.dict')
+        corpus = [dictionary.doc2bow(text) for text in texts]
+        corpora.MmCorpus.serialize('tweet_corpus.mm', corpus)
+        tfidf = models.TfidfModel(corpus)
+        corpus_tfidf = tfidf[corpus]
+        # initialize an LDA transformation
+        lda = models.LdaModel(corpus, id2word=dictionary, num_topics=20)
+        lda.save('tweet_lda_model.lsi')
+        print('\n[INFO] LDA Model Topics')
+        print(lda.print_topics(2))
+        
 def main():
     import sys
     reload(sys)
@@ -273,7 +289,7 @@ def main():
 
     app.load_data(args.load)
     app.analyze_data()
-    app.analyze_sentiment()
+    app.lda_topic_modeling()
     app.create_counters()
     app.create_tfidf()
     app.print_cosine_similar()

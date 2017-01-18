@@ -2,6 +2,9 @@
 tweets_dataframe
 *.pickle
 *.json
+*.lsi
+*.mm
+*.dict
 .idea
 
 # System #
