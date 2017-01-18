@@ -1,6 +1,8 @@
 # Ignore binary data #
 tweets_dataframe
 *.pickle
+tweet_lda_model.lsi.state
+tweet_corpus.mm.index
 *.json
 *.lsi
 *.mm
