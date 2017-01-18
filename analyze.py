@@ -9,6 +9,7 @@ import argparse
 import vincent
 import json
 import os, pwd
+import pandas as pd
 from collections import Counter
 from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -120,7 +121,7 @@ class App:
                 lists = [map(float, s.replace(']', '').split(',')) for s in locations_str]
                 list = lists
         except ValueError, e:
-            print('Error: %s' % (geostamp_str))
+            print('%s: %s' % (e, geostamp_str))
         return list
 
     def timestr_to_datetime(self, timestr):
@@ -128,7 +129,7 @@ class App:
         try:
             time = datetime.strptime(timestr, '%m/%d/%Y %H:%M:%S')
         except ValueError, e:
-            print('Error: %s' % (timestr))
+            print('%s: %s' % (e, timestr))
         return time
 
     def load_data(self, load=False):
