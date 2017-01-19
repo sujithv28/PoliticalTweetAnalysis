@@ -7,7 +7,13 @@ tweet_corpus.mm.index
 *.lsi
 *.mm
 *.dict
+*.state
+*.lsi
+*.mm
+*.index
 .idea
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
 
 # System #
 *~

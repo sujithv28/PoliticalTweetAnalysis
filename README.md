@@ -25,7 +25,7 @@ From here, you should be able to run
 
 	python analyze.py
 
-... Hopefully.
+... or view the PoliticalTweetAnalaysis Notebook to follow along and view detailed analysis of the code.
 
 ## Visualize Geo Data
 

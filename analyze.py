@@ -298,7 +298,6 @@ def main():
     app.analyze_geodata()
 
     print()
-    # pdb.set_trace()
 
 
 if __name__ == '__main__':
